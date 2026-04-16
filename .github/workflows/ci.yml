@@ -26,11 +26,7 @@ jobs:
             matrix:
                 # First all python versions in basic linux
                 os: [ ubuntu-latest ]
-<<<<<<< merge-main
-                py: [ 3.9, "3.10", 3.11, 3.12, 3.13, 3.14 ]
-=======
                 py: [ "3.12" ]
->>>>>>> fix_tests
                 CC: [ gcc ]
                 CXX: [ g++ ]
                 FFTW_DIR: [ "/usr/local/lib" ]
