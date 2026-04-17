@@ -19,7 +19,7 @@
 import numpy as np
 
 import galsim
-from galsim_test_helpers import timer, check_pickle, assert_raises, check_all_diff, is_jax_galsim
+from galsim_test_helpers import timer, check_pickle, assert_raises, check_all_diff, is_jax_galsim, run_slow
 
 
 @timer
