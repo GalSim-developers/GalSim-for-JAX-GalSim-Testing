@@ -148,8 +148,12 @@ def test_Image_basic():
         # Also test alternate name of image type: ImageD, ImageF, etc.
         image_type = eval("galsim.Image"+tchar[i]) # Use handy eval() mimics use of ImageSIFD
         im2 = image_type(bounds, init_value=23)
-        im2_view = im2.view()
-        im2_cview = im2.view(make_const=True)
+        if is_jax_galsim():
+            im2_view = im2.copy()
+            im2_cview = im2.copy(make_const=True)
+        else:
+            im2_view = im2.view()
+            im2_cview = im2.view(make_const=True)
         im2_conj = im2.conjugate
 
         assert im2_view.xmin == 1
@@ -202,34 +206,25 @@ def test_Image_basic():
                 assert im1(galsim.PositionI(x,y)) == value
                 assert im1a(x+3,y+6) == value
                 assert im1b(x-1,y-1) == value
-                assert im1.view()(x,y) == value
-                assert im1.view()(galsim.PositionI(x,y)) == value
-                assert im1.view(make_const=True)(x,y) == value
                 if is_jax_galsim():
-                    # no real views in jax
-                    assert im2(x,y) != value
+                    assert im1.copy()(x,y) == value
+                    assert im1.copy()(galsim.PositionI(x,y)) == value
+                    assert im1.copy(make_const=True)(x,y) == value
                 else:
+                    assert im1.view()(x,y) == value
+                    assert im1.view()(galsim.PositionI(x,y)) == value
+                    assert im1.view(make_const=True)(x,y) == value
                     assert im2(x,y) == value
-                assert im2_view(x,y) == value
-                if is_jax_galsim():
-                    # no real views in jax
-                    assert im2_cview(x,y) != value
-                else:
+                    assert im2_view(x,y) == value
                     assert im2_cview(x,y) == value
                 assert im1.conjugate(x,y) == value
                 if tchar[i][0] == 'C':
                     # complex conjugate is not a view into the original.
                     assert im2_conj(x,y) == 23
-                    if is_jax_galsim():
-                        # no real views in jax
-                        assert im2.conjugate(x,y) != value
-                    else:
+                    if not is_jax_galsim():
                         assert im2.conjugate(x,y) == value
                 else:
-                    if is_jax_galsim():
-                        # no real views in jax
-                        assert im2_conj(x,y) != value
-                    else:
+                    if not is_jax_galsim():
                         assert im2_conj(x,y) == value
 
                 value2 = 53 + 12*x - 19*y
@@ -238,60 +233,49 @@ def test_Image_basic():
                 im1[x,y] = value2
                 im2_view[galsim.PositionI(x,y)] = value2
                 assert im1.getValue(x,y) == value2
-                assert im1.view().getValue(x=x, y=y) == value2
-                assert im1.view(make_const=True).getValue(x,y) == value2
                 if is_jax_galsim():
-                    # no real views in jax
-                    assert im2.getValue(x=x, y=y) != value2
+                    assert im1.copy().getValue(x=x, y=y) == value2
+                    assert im1.copy(make_const=True).getValue(x,y) == value2
                 else:
+                    assert im1.view().getValue(x=x, y=y) == value2
+                    assert im1.view(make_const=True).getValue(x,y) == value2
                     assert im2.getValue(x=x, y=y) == value2
-                assert im2_view.getValue(x,y) == value2
-                if is_jax_galsim():
-                    # no real views in jax
-                    assert im2_cview._getValue(x,y) != value2
-                else:
+                    assert im2_view.getValue(x,y) == value2
                     assert im2_cview._getValue(x,y) == value2
 
                 assert im1.real(x,y) == value2
-                assert im1.view().real(x,y) == value2
-                assert im1.view(make_const=True).real(x,y) == value2.real
                 if is_jax_galsim():
-                    # no real views in jax
-                    assert im2.real(x,y) != value2.real
+                    assert im1.copy().real(x,y) == value2
+                    assert im1.copy(make_const=True).real(x,y) == value2.real
                 else:
+                    assert im1.view().real(x,y) == value2
+                    assert im1.view(make_const=True).real(x,y) == value2.real
                     assert im2.real(x,y) == value2.real
-                assert im2_view.real(x,y) == value2.real
-                if is_jax_galsim():
-                    # no real views in jax
-                    assert im2_cview.real(x,y) != value2.real
-                else:
+                    assert im2_view.real(x,y) == value2.real
                     assert im2_cview.real(x,y) == value2.real
                 assert im1.imag(x,y) == 0
-                assert im1.view().imag(x,y) == 0
-                assert im1.view(make_const=True).imag(x,y) == 0
+                if is_jax_galsim():
+                    assert im1.copy().imag(x,y) == 0
+                    assert im1.copy(make_const=True).imag(x,y) == 0
+                else:
+                    assert im1.view().imag(x,y) == 0
+                    assert im1.view(make_const=True).imag(x,y) == 0
                 assert im2.imag(x,y) == 0
                 assert im2_view.imag(x,y) == 0
                 assert im2_cview.imag(x,y) == 0
 
-                if is_jax_galsim():
-                    value3 = 10*x + y + 111
-                else:
-                    value3 = 10*x + y
+                value3 = 10*x + y
                 im1.addValue(x,y, np.int64(value3-value2))
                 im2_view[x,y] += np.int64(value3-value2)
                 assert im1[galsim.PositionI(x,y)] == value3
-                assert im1.view()[x,y] == value3
-                assert im1.view(make_const=True)[galsim.PositionI(x,y)] == value3
                 if is_jax_galsim():
-                    # no real views in jax
-                    assert im2[x,y] != value3
+                    assert im1.copy()[x,y] == value3
+                    assert im1.copy(make_const=True)[galsim.PositionI(x,y)] == value3
                 else:
+                    assert im1.view()[x,y] == value3
+                    assert im1.view(make_const=True)[galsim.PositionI(x,y)] == value3
                     assert im2[x,y] == value3
-                assert im2_view[galsim.PositionI(x,y)] == value3
-                if is_jax_galsim():
-                    # no real views in jax
-                    assert im2_cview[x,y] != value3
-                else:
+                    assert im2_view[galsim.PositionI(x,y)] == value3
                     assert im2_cview[x,y] == value3
 
         # Setting or getting the value outside the bounds should throw an exception.
@@ -300,28 +284,46 @@ def test_Image_basic():
         assert_raises(galsim.GalSimBoundsError,im1.__call__,0,0)
         assert_raises(galsim.GalSimBoundsError,im1.__getitem__,0,0)
         assert_raises(galsim.GalSimBoundsError,im1.__setitem__,0,0,1)
-        assert_raises(galsim.GalSimBoundsError,im1.view().setValue,0,0,1)
-        assert_raises(galsim.GalSimBoundsError,im1.view().__call__,0,0)
-        assert_raises(galsim.GalSimBoundsError,im1.view().__getitem__,0,0)
-        assert_raises(galsim.GalSimBoundsError,im1.view().__setitem__,0,0,1)
+        if is_jax_galsim():
+            assert_raises(galsim.GalSimBoundsError,im1.copy().setValue,0,0,1)
+            assert_raises(galsim.GalSimBoundsError,im1.copy().__call__,0,0)
+            assert_raises(galsim.GalSimBoundsError,im1.copy().__getitem__,0,0)
+            assert_raises(galsim.GalSimBoundsError,im1.copy().__setitem__,0,0,1)
+        else:
+            assert_raises(galsim.GalSimBoundsError,im1.view().setValue,0,0,1)
+            assert_raises(galsim.GalSimBoundsError,im1.view().__call__,0,0)
+            assert_raises(galsim.GalSimBoundsError,im1.view().__getitem__,0,0)
+            assert_raises(galsim.GalSimBoundsError,im1.view().__setitem__,0,0,1)
 
         assert_raises(galsim.GalSimBoundsError,im1.setValue,ncol+1,0,1)
         assert_raises(galsim.GalSimBoundsError,im1.addValue,ncol+1,0,1)
         assert_raises(galsim.GalSimBoundsError,im1.__call__,ncol+1,0)
-        assert_raises(galsim.GalSimBoundsError,im1.view().setValue,ncol+1,0,1)
-        assert_raises(galsim.GalSimBoundsError,im1.view().__call__,ncol+1,0)
+        if is_jax_galsim():
+            assert_raises(galsim.GalSimBoundsError,im1.copy().setValue,ncol+1,0,1)
+            assert_raises(galsim.GalSimBoundsError,im1.copy().__call__,ncol+1,0)
+        else:
+            assert_raises(galsim.GalSimBoundsError,im1.view().setValue,ncol+1,0,1)
+            assert_raises(galsim.GalSimBoundsError,im1.view().__call__,ncol+1,0)
 
         assert_raises(galsim.GalSimBoundsError,im1.setValue,0,nrow+1,1)
         assert_raises(galsim.GalSimBoundsError,im1.addValue,0,nrow+1,1)
         assert_raises(galsim.GalSimBoundsError,im1.__call__,0,nrow+1)
-        assert_raises(galsim.GalSimBoundsError,im1.view().setValue,0,nrow+1,1)
-        assert_raises(galsim.GalSimBoundsError,im1.view().__call__,0,nrow+1)
+        if is_jax_galsim():
+            assert_raises(galsim.GalSimBoundsError,im1.copy().setValue,0,nrow+1,1)
+            assert_raises(galsim.GalSimBoundsError,im1.copy().__call__,0,nrow+1)
+        else:
+            assert_raises(galsim.GalSimBoundsError,im1.view().setValue,0,nrow+1,1)
+            assert_raises(galsim.GalSimBoundsError,im1.view().__call__,0,nrow+1)
 
         assert_raises(galsim.GalSimBoundsError,im1.setValue,ncol+1,nrow+1,1)
         assert_raises(galsim.GalSimBoundsError,im1.addValue,ncol+1,nrow+1,1)
         assert_raises(galsim.GalSimBoundsError,im1.__call__,ncol+1,nrow+1)
-        assert_raises(galsim.GalSimBoundsError,im1.view().setValue,ncol+1,nrow+1,1)
-        assert_raises(galsim.GalSimBoundsError,im1.view().__call__,ncol+1,nrow+1)
+        if is_jax_galsim():
+            assert_raises(galsim.GalSimBoundsError,im1.copy().setValue,ncol+1,nrow+1,1)
+            assert_raises(galsim.GalSimBoundsError,im1.copy().__call__,ncol+1,nrow+1)
+        else:
+            assert_raises(galsim.GalSimBoundsError,im1.view().setValue,ncol+1,nrow+1,1)
+            assert_raises(galsim.GalSimBoundsError,im1.view().__call__,ncol+1,nrow+1)
 
         assert_raises(galsim.GalSimBoundsError,im1.__getitem__,galsim.BoundsI(0,ncol,1,nrow))
         assert_raises(galsim.GalSimBoundsError,im1.__getitem__,galsim.BoundsI(1,ncol,0,nrow))
@@ -356,9 +358,14 @@ def test_Image_basic():
                       galsim.Image(ncol+2,nrow+2, init_value=10))
 
         # Also, setting values in something that should be const
-        assert_raises(galsim.GalSimImmutableError,im1.view(make_const=True).setValue,1,1,1)
-        assert_raises(galsim.GalSimImmutableError,im1.view(make_const=True).real.setValue,1,1,1)
-        assert_raises(galsim.GalSimImmutableError,im1.view(make_const=True).imag.setValue,1,1,1)
+        if is_jax_galsim():
+            assert_raises(galsim.GalSimImmutableError,im1.copy(make_const=True).setValue,1,1,1)
+            assert_raises(galsim.GalSimImmutableError,im1.copy(make_const=True).real.setValue,1,1,1)
+            assert_raises(galsim.GalSimImmutableError,im1.copy(make_const=True).imag.setValue,1,1,1)
+        else:
+            assert_raises(galsim.GalSimImmutableError,im1.view(make_const=True).setValue,1,1,1)
+            assert_raises(galsim.GalSimImmutableError,im1.view(make_const=True).real.setValue,1,1,1)
+            assert_raises(galsim.GalSimImmutableError,im1.view(make_const=True).imag.setValue,1,1,1)
         if tchar[i][0] != 'C':
             assert_raises(galsim.GalSimImmutableError,im1.imag.setValue,1,1,1)
 
@@ -375,7 +382,10 @@ def test_Image_basic():
         im5_view = galsim.Image(ref_array.astype(np_array_type).tolist(), dtype=array_type)
         im6_view = galsim.Image(ref_array.astype(np_array_type), xmin=4, ymin=7)
         im7_view = galsim.Image(ref_array.astype(np_array_type), xmin=0, ymin=0)
-        im8_view = galsim.Image(ref_array).view(dtype=np_array_type)
+        if is_jax_galsim():
+            im8_view = galsim.Image(ref_array).copy(dtype=np_array_type)
+        else:
+            im8_view = galsim.Image(ref_array).view(dtype=np_array_type)
         for y in range(1,nrow+1):
             for x in range(1,ncol+1):
                 value3 = 10*x+y
@@ -387,7 +397,10 @@ def test_Image_basic():
                 assert im8_view(x,y) == value3
 
         # Check shift ops
-        im1_view = im1.view() # View with old bounds
+        if is_jax_galsim():
+            im1_view = im1.copy()
+        else:
+            im1_view = im1.view() # View with old bounds
         dx = 31
         dy = 16
         im1.shift(dx,dy)
@@ -403,19 +416,12 @@ def test_Image_basic():
         assert im2.bounds == bounds
         for y in range(1,nrow+1):
             for x in range(1,ncol+1):
-                if is_jax_galsim():
-                    value3 = 10*x+y + 111
-                else:
-                    value3 = 10*x+y
+                value3 = 10*x+y
                 assert im1(x+dx,y+dy) == value3
                 assert im1_view(x,y) == value3
-                if is_jax_galsim():
-                    assert im2(x,y) != value3
-                else:
+                if not is_jax_galsim():
                     assert im2(x,y) == value3
                 assert im2_view(x+dx,y+dy) == value3
-                if is_jax_galsim():
-                    value3 = 10*x+y
                 assert im3_view(x+dx,y+dy) == value3
 
         assert_raises(TypeError, im1.shift, dx)
@@ -507,11 +513,19 @@ def test_undefined_image():
 
         assert_raises(galsim.GalSimUndefinedBoundsError,im1.setValue, 0, 0, 1)
         assert_raises(galsim.GalSimUndefinedBoundsError,im1.__call__, 0, 0)
-        assert_raises(galsim.GalSimUndefinedBoundsError,im1.view().setValue, 0, 0, 1)
-        assert_raises(galsim.GalSimUndefinedBoundsError,im1.view().__call__, 0, 0)
-        assert_raises(galsim.GalSimUndefinedBoundsError,im1.view().addValue, 0, 0, 1)
+        if is_jax_galsim():
+            assert_raises(galsim.GalSimUndefinedBoundsError,im1.copy().setValue, 0, 0, 1)
+            assert_raises(galsim.GalSimUndefinedBoundsError,im1.copy().__call__, 0, 0)
+            assert_raises(galsim.GalSimUndefinedBoundsError,im1.copy().addValue, 0, 0, 1)
+        else:
+            assert_raises(galsim.GalSimUndefinedBoundsError,im1.view().setValue, 0, 0, 1)
+            assert_raises(galsim.GalSimUndefinedBoundsError,im1.view().__call__, 0, 0)
+            assert_raises(galsim.GalSimUndefinedBoundsError,im1.view().addValue, 0, 0, 1)
         assert_raises(galsim.GalSimUndefinedBoundsError,im1.fill, 3)
-        assert_raises(galsim.GalSimUndefinedBoundsError,im1.view().fill, 3)
+        if is_jax_galsim():
+            assert_raises(galsim.GalSimUndefinedBoundsError,im1.copy().fill, 3)
+        else:
+            assert_raises(galsim.GalSimUndefinedBoundsError,im1.view().fill, 3)
         assert_raises(galsim.GalSimUndefinedBoundsError,im1.invertSelf)
 
         assert_raises(galsim.GalSimUndefinedBoundsError,im1.__getitem__,galsim.BoundsI(1,2,1,2))
@@ -528,8 +542,12 @@ def test_undefined_image():
 
         check_pickle(im1.bounds)
         check_pickle(im1)
-        check_pickle(im1.view())
-        check_pickle(im1.view(make_const=True))
+        if is_jax_galsim():
+            check_pickle(im1.copy())
+            check_pickle(im1.copy(make_const=True))
+        else:
+            check_pickle(im1.view())
+            check_pickle(im1.view(make_const=True))
 
 
 @timer
@@ -2579,11 +2597,7 @@ def test_Image_view():
     assert imv.bounds == im.bounds
     imv.setValue(11,19, 20)
     assert imv(11,19) == 20
-    if is_jax_galsim():
-        # jax-galsim does not support views
-        assert im(11,19) != 20
-    else:
-        assert im(11,19) == 20
+    assert im(11,19) == 20
     check_pickle(im)
     check_pickle(imv)
 
@@ -2595,11 +2609,7 @@ def test_Image_view():
     assert imv.bounds == galsim.BoundsI(0,24,0,24)
     imv.setValue(10,18, 30)
     assert imv(10,18) == 30
-    if is_jax_galsim():
-        # jax-galsim does not support views
-        assert im(11,19) != 20
-    else:
-        assert im(11,19) == 30
+    assert im(11,19) == 30
     imv2 = im.view()
     imv2.setOrigin(0,0)
     assert imv.bounds == imv2.bounds
@@ -2615,11 +2625,7 @@ def test_Image_view():
     assert imv.bounds == galsim.BoundsI(-12,12,-12,12)
     imv.setValue(-2,6, 40)
     assert imv(-2,6) == 40
-    if is_jax_galsim():
-        # jax-galsim does not support views
-        assert im(11,19) != 40
-    else:
-        assert im(11,19) == 40
+    assert im(11,19) == 40
     imv2 = im.view()
     imv2.setCenter(0,0)
     assert imv.bounds == imv2.bounds
@@ -2636,11 +2642,7 @@ def test_Image_view():
     assert imv.bounds == im.bounds
     imv.setValue(11,19, 50)
     assert imv(11,19) == 50
-    if is_jax_galsim():
-        # jax-galsim does not support views
-        assert im(11,19) != 50
-    else:
-        assert im(11,19) == 50
+    assert im(11,19) == 50
     imv2 = im.view()
     with assert_raises(galsim.GalSimError):
         imv2.scale = 0.17   # Invalid if wcs is not PixelScale
@@ -2658,11 +2660,7 @@ def test_Image_view():
     assert imv.bounds == im.bounds
     imv.setValue(11,19, 60)
     assert imv(11,19) == 60
-    if is_jax_galsim():
-        # jax-galsim does not support views
-        assert im(11,19) != 60
-    else:
-        assert im(11,19) == 60
+    assert im(11,19) == 60
     imv2 = im.view()
     imv2.wcs = galsim.JacobianWCS(0.,0.23,-0.23,0.)
     assert imv.bounds == imv2.bounds
@@ -2856,11 +2854,19 @@ def test_complex_image():
     for dtype in [np.complex64, np.complex128]:
         # Some complex modifications to tests in test_Image_basic
         im1 = galsim.Image(ncol, nrow, dtype=dtype)
-        im1_view = im1.view()
-        im1_cview = im1.view(make_const=True)
+        if is_jax_galsim():
+            im1_view = im1.copy()
+            im1_cview = im1.copy(make_const=True)
+        else:
+            im1_view = im1.view()
+            im1_cview = im1.view(make_const=True)
         im2 = galsim.Image(ncol, nrow, init_value=23, dtype=dtype)
-        im2_view = im2.view()
-        im2_cview = im2.view(make_const=True)
+        if is_jax_galsim():
+            im2_view = im2.copy()
+            im2_cview = im2.copy(make_const=True)
+        else:
+            im2_view = im2.view()
+            im2_cview = im2.view(make_const=True)
         im2_conj = im2.conjugate
 
         # Check various ways to set and get values
@@ -2873,83 +2879,57 @@ def test_complex_image():
             for x in range(1,ncol+1):
                 value = 100 + 10*x + y + 13j*x + 23j*y
                 assert im1(x,y) == value
-                assert im1.view()(x,y) == value
-                assert im1.view(make_const=True)(x,y) == value
                 if is_jax_galsim():
-                    # jax galsim does not support views
-                    assert im2(x,y) != value
+                    assert im1.copy()(x,y) == value
+                    assert im1.copy(make_const=True)(x,y) == value
                 else:
+                    assert im1.view()(x,y) == value
+                    assert im1.view(make_const=True)(x,y) == value
                     assert im2(x,y) == value
-                assert im2_view(x,y) == value
-                if is_jax_galsim():
-                    # jax galsim does not support views
-                    assert im2_cview(x,y) != value
-                else:
+                    assert im2_view(x,y) == value
                     assert im2_cview(x,y) == value
                 assert im1.conjugate(x,y) == np.conjugate(value)
 
                 # complex conjugate is not a view into the original.
                 assert im2_conj(x,y) == 23
-                if is_jax_galsim():
-                    # jax galsim does not support views
-                    assert im2.conjugate(x,y) != np.conjugate(value)
-                else:
+                if not is_jax_galsim():
                     assert im2.conjugate(x,y) == np.conjugate(value)
 
-                if is_jax_galsim():
-                    value2 = 400000 + 10*x + y + 20j*x + 2j*y
-                else:
-                    value2 = 10*x + y + 20j*x + 2j*y
+                value2 = 10*x + y + 20j*x + 2j*y
                 im1.setValue(x,y, value2)
                 im2_view.setValue(x=x, y=y, value=value2)
                 assert im1(x,y) == value2
-                assert im1.view()(x,y) == value2
-                assert im1.view(make_const=True)(x,y) == value2
                 if is_jax_galsim():
-                    # jax galsim does not support views
-                    assert im2(x,y) != value2
+                    assert im1.copy()(x,y) == value2
+                    assert im1.copy(make_const=True)(x,y) == value2
                 else:
+                    assert im1.view()(x,y) == value2
+                    assert im1.view(make_const=True)(x,y) == value2
                     assert im2(x,y) == value2
-                assert im2_view(x,y) == value2
-                if is_jax_galsim():
-                    # jax galsim does not support views
-                    assert im2_cview(x,y) != value2
-                else:
+                    assert im2_view(x,y) == value2
                     assert im2_cview(x,y) == value2
 
                 assert im1.real(x,y) == value2.real
-                assert im1.view().real(x,y) == value2.real
-                assert im1.view(make_const=True).real(x,y) == value2.real
                 if is_jax_galsim():
-                    # jax galsim does not support views
-                    assert im2.real(x,y) != value2.real
+                    assert im1.copy().real(x,y) == value2.real
+                    assert im1.copy(make_const=True).real(x,y) == value2.real
                 else:
+                    assert im1.view().real(x,y) == value2.real
+                    assert im1.view(make_const=True).real(x,y) == value2.real
                     assert im2.real(x,y) == value2.real
-                assert im2_view.real(x,y) == value2.real
-                if is_jax_galsim():
-                    # jax galsim does not support views
-                    assert im2_cview.real(x,y) != value2.real
-                else:
+                    assert im2_view.real(x,y) == value2.real
                     assert im2_cview.real(x,y) == value2.real
                 assert im1.imag(x,y) == value2.imag
-                assert im1.view().imag(x,y) == value2.imag
-                assert im1.view(make_const=True).imag(x,y) == value2.imag
                 if is_jax_galsim():
-                    # jax galsim does not support views
-                    assert im2.imag(x,y) != value2.imag
+                    assert im1.copy().imag(x,y) == value2.imag
+                    assert im1.copy(make_const=True).imag(x,y) == value2.imag
                 else:
+                    assert im1.view().imag(x,y) == value2.imag
+                    assert im1.view(make_const=True).imag(x,y) == value2.imag
                     assert im2.imag(x,y) == value2.imag
-                assert im2_view.imag(x,y) == value2.imag
-                if is_jax_galsim():
-                    # jax galsim does not support views
-                    assert im2_cview.imag(x,y) != value2.imag
-                else:
+                    assert im2_view.imag(x,y) == value2.imag
                     assert im2_cview.imag(x,y) == value2.imag
-                assert im1.conjugate(x,y) == np.conjugate(value2)
-                if is_jax_galsim():
-                    # jax galsim does not support views
-                    assert im2.conjugate(x,y) != np.conjugate(value2)
-                else:
+                    assert im1.conjugate(x,y) == np.conjugate(value2)
                     assert im2.conjugate(x,y) == np.conjugate(value2)
 
                 rvalue3 = 12*x + y
@@ -2962,13 +2942,8 @@ def test_complex_image():
                 # jax galsim does not support views
                 if is_jax_galsim():
                     assert im1(x,y) != value3
-                    assert im1.view()(x,y) != value3
-                    assert im1.view(make_const=True)(x,y) != value3
-                    assert im2(x,y) != value3
-                    assert im2_view(x,y) != value3
-                    assert im2_cview(x,y) != value3
-                    assert im1.conjugate(x,y) != np.conjugate(value3)
-                    assert im2.conjugate(x,y) != np.conjugate(value3)
+                    assert im1.copy()(x,y) != value3
+                    assert im1.copy(make_const=True)(x,y) != value3
                 else:
                     assert im1(x,y) == value3
                     assert im1.view()(x,y) == value3
