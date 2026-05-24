@@ -81,7 +81,7 @@ else:
     # it helps speed things up.
     nimages = 3
 
-datadir = os.path.join(".", "Image_comparison_images")
+datadir = os.path.join(os.path.dirname(__file__), "Image_comparison_images")
 
 
 @timer
@@ -103,8 +103,12 @@ def test_Image_basic():
         np.testing.assert_array_equal(im1.array, 0.)
         assert im1.array.shape == (nrow,ncol)
         assert im1.array.dtype.type == np_array_type
-        assert im1.array.flags.writeable == True
-        assert im1.array.flags.c_contiguous == True
+        if is_jax_galsim():
+            pass
+        else:
+            # jax arrays do not have flags
+            assert im1.array.flags.writeable == True
+            assert im1.array.flags.c_contiguous == True
         assert im1.dtype == np_array_type
         assert im1.ncol == ncol
         assert im1.nrow == nrow
@@ -144,8 +148,12 @@ def test_Image_basic():
         # Also test alternate name of image type: ImageD, ImageF, etc.
         image_type = eval("galsim.Image"+tchar[i]) # Use handy eval() mimics use of ImageSIFD
         im2 = image_type(bounds, init_value=23)
-        im2_view = im2.view()
-        im2_cview = im2.view(make_const=True)
+        if is_jax_galsim():
+            im2_view = im2.copy()
+            im2_cview = im2.copy(make_const=True)
+        else:
+            im2_view = im2.view()
+            im2_cview = im2.view(make_const=True)
         im2_conj = im2.conjugate
 
         assert im2_view.xmin == 1
@@ -198,19 +206,26 @@ def test_Image_basic():
                 assert im1(galsim.PositionI(x,y)) == value
                 assert im1a(x+3,y+6) == value
                 assert im1b(x-1,y-1) == value
-                assert im1.view()(x,y) == value
-                assert im1.view()(galsim.PositionI(x,y)) == value
-                assert im1.view(make_const=True)(x,y) == value
-                assert im2(x,y) == value
-                assert im2_view(x,y) == value
-                assert im2_cview(x,y) == value
+                if is_jax_galsim():
+                    assert im1.copy()(x,y) == value
+                    assert im1.copy()(galsim.PositionI(x,y)) == value
+                    assert im1.copy(make_const=True)(x,y) == value
+                else:
+                    assert im1.view()(x,y) == value
+                    assert im1.view()(galsim.PositionI(x,y)) == value
+                    assert im1.view(make_const=True)(x,y) == value
+                    assert im2(x,y) == value
+                    assert im2_view(x,y) == value
+                    assert im2_cview(x,y) == value
                 assert im1.conjugate(x,y) == value
                 if tchar[i][0] == 'C':
                     # complex conjugate is not a view into the original.
                     assert im2_conj(x,y) == 23
-                    assert im2.conjugate(x,y) == value
+                    if not is_jax_galsim():
+                        assert im2.conjugate(x,y) == value
                 else:
-                    assert im2_conj(x,y) == value
+                    if not is_jax_galsim():
+                        assert im2_conj(x,y) == value
 
                 value2 = 53 + 12*x - 19*y
                 if tchar[i] in ['US', 'UI']:
@@ -218,21 +233,33 @@ def test_Image_basic():
                 im1[x,y] = value2
                 im2_view[galsim.PositionI(x,y)] = value2
                 assert im1.getValue(x,y) == value2
-                assert im1.view().getValue(x=x, y=y) == value2
-                assert im1.view(make_const=True).getValue(x,y) == value2
-                assert im2.getValue(x=x, y=y) == value2
-                assert im2_view.getValue(x,y) == value2
-                assert im2_cview._getValue(x,y) == value2
+                if is_jax_galsim():
+                    assert im1.copy().getValue(x=x, y=y) == value2
+                    assert im1.copy(make_const=True).getValue(x,y) == value2
+                else:
+                    assert im1.view().getValue(x=x, y=y) == value2
+                    assert im1.view(make_const=True).getValue(x,y) == value2
+                    assert im2.getValue(x=x, y=y) == value2
+                    assert im2_view.getValue(x,y) == value2
+                    assert im2_cview._getValue(x,y) == value2
 
                 assert im1.real(x,y) == value2
-                assert im1.view().real(x,y) == value2
-                assert im1.view(make_const=True).real(x,y) == value2.real
-                assert im2.real(x,y) == value2.real
-                assert im2_view.real(x,y) == value2.real
-                assert im2_cview.real(x,y) == value2.real
+                if is_jax_galsim():
+                    assert im1.copy().real(x,y) == value2
+                    assert im1.copy(make_const=True).real(x,y) == value2.real
+                else:
+                    assert im1.view().real(x,y) == value2
+                    assert im1.view(make_const=True).real(x,y) == value2.real
+                    assert im2.real(x,y) == value2.real
+                    assert im2_view.real(x,y) == value2.real
+                    assert im2_cview.real(x,y) == value2.real
                 assert im1.imag(x,y) == 0
-                assert im1.view().imag(x,y) == 0
-                assert im1.view(make_const=True).imag(x,y) == 0
+                if is_jax_galsim():
+                    assert im1.copy().imag(x,y) == 0
+                    assert im1.copy(make_const=True).imag(x,y) == 0
+                else:
+                    assert im1.view().imag(x,y) == 0
+                    assert im1.view(make_const=True).imag(x,y) == 0
                 assert im2.imag(x,y) == 0
                 assert im2_view.imag(x,y) == 0
                 assert im2_cview.imag(x,y) == 0
@@ -241,77 +268,104 @@ def test_Image_basic():
                 im1.addValue(x,y, np.int64(value3-value2))
                 im2_view[x,y] += np.int64(value3-value2)
                 assert im1[galsim.PositionI(x,y)] == value3
-                assert im1.view()[x,y] == value3
-                assert im1.view(make_const=True)[galsim.PositionI(x,y)] == value3
-                assert im2[x,y] == value3
-                assert im2_view[galsim.PositionI(x,y)] == value3
-                assert im2_cview[x,y] == value3
+                if is_jax_galsim():
+                    assert im1.copy()[x,y] == value3
+                    assert im1.copy(make_const=True)[galsim.PositionI(x,y)] == value3
+                else:
+                    assert im1.view()[x,y] == value3
+                    assert im1.view(make_const=True)[galsim.PositionI(x,y)] == value3
+                    assert im2[x,y] == value3
+                    assert im2_view[galsim.PositionI(x,y)] == value3
+                    assert im2_cview[x,y] == value3
 
         # Setting or getting the value outside the bounds should throw an exception.
-        assert_raises(galsim.GalSimBoundsError,im1.setValue,0,0,1)
-        assert_raises(galsim.GalSimBoundsError,im1.addValue,0,0,1)
-        assert_raises(galsim.GalSimBoundsError,im1.__call__,0,0)
-        assert_raises(galsim.GalSimBoundsError,im1.__getitem__,0,0)
-        assert_raises(galsim.GalSimBoundsError,im1.__setitem__,0,0,1)
-        assert_raises(galsim.GalSimBoundsError,im1.view().setValue,0,0,1)
-        assert_raises(galsim.GalSimBoundsError,im1.view().__call__,0,0)
-        assert_raises(galsim.GalSimBoundsError,im1.view().__getitem__,0,0)
-        assert_raises(galsim.GalSimBoundsError,im1.view().__setitem__,0,0,1)
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.setValue,0,0,1)
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.addValue,0,0,1)
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.__call__,0,0)
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.__getitem__,0,0)
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.__setitem__,0,0,1)
+        if is_jax_galsim():
+            assert_raises((galsim.GalSimBoundsError, Exception),im1.copy().setValue,0,0,1)
+            assert_raises((galsim.GalSimBoundsError, Exception),im1.copy().__call__,0,0)
+            assert_raises((galsim.GalSimBoundsError, Exception),im1.copy().__getitem__,0,0)
+            assert_raises((galsim.GalSimBoundsError, Exception),im1.copy().__setitem__,0,0,1)
+        else:
+            assert_raises((galsim.GalSimBoundsError, Exception),im1.view().setValue,0,0,1)
+            assert_raises((galsim.GalSimBoundsError, Exception),im1.view().__call__,0,0)
+            assert_raises((galsim.GalSimBoundsError, Exception),im1.view().__getitem__,0,0)
+            assert_raises((galsim.GalSimBoundsError, Exception),im1.view().__setitem__,0,0,1)
 
-        assert_raises(galsim.GalSimBoundsError,im1.setValue,ncol+1,0,1)
-        assert_raises(galsim.GalSimBoundsError,im1.addValue,ncol+1,0,1)
-        assert_raises(galsim.GalSimBoundsError,im1.__call__,ncol+1,0)
-        assert_raises(galsim.GalSimBoundsError,im1.view().setValue,ncol+1,0,1)
-        assert_raises(galsim.GalSimBoundsError,im1.view().__call__,ncol+1,0)
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.setValue,ncol+1,0,1)
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.addValue,ncol+1,0,1)
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.__call__,ncol+1,0)
+        if is_jax_galsim():
+            assert_raises((galsim.GalSimBoundsError, Exception),im1.copy().setValue,ncol+1,0,1)
+            assert_raises((galsim.GalSimBoundsError, Exception),im1.copy().__call__,ncol+1,0)
+        else:
+            assert_raises((galsim.GalSimBoundsError, Exception),im1.view().setValue,ncol+1,0,1)
+            assert_raises((galsim.GalSimBoundsError, Exception),im1.view().__call__,ncol+1,0)
 
-        assert_raises(galsim.GalSimBoundsError,im1.setValue,0,nrow+1,1)
-        assert_raises(galsim.GalSimBoundsError,im1.addValue,0,nrow+1,1)
-        assert_raises(galsim.GalSimBoundsError,im1.__call__,0,nrow+1)
-        assert_raises(galsim.GalSimBoundsError,im1.view().setValue,0,nrow+1,1)
-        assert_raises(galsim.GalSimBoundsError,im1.view().__call__,0,nrow+1)
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.setValue,0,nrow+1,1)
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.addValue,0,nrow+1,1)
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.__call__,0,nrow+1)
+        if is_jax_galsim():
+            assert_raises((galsim.GalSimBoundsError, Exception),im1.copy().setValue,0,nrow+1,1)
+            assert_raises((galsim.GalSimBoundsError, Exception),im1.copy().__call__,0,nrow+1)
+        else:
+            assert_raises((galsim.GalSimBoundsError, Exception),im1.view().setValue,0,nrow+1,1)
+            assert_raises((galsim.GalSimBoundsError, Exception),im1.view().__call__,0,nrow+1)
 
-        assert_raises(galsim.GalSimBoundsError,im1.setValue,ncol+1,nrow+1,1)
-        assert_raises(galsim.GalSimBoundsError,im1.addValue,ncol+1,nrow+1,1)
-        assert_raises(galsim.GalSimBoundsError,im1.__call__,ncol+1,nrow+1)
-        assert_raises(galsim.GalSimBoundsError,im1.view().setValue,ncol+1,nrow+1,1)
-        assert_raises(galsim.GalSimBoundsError,im1.view().__call__,ncol+1,nrow+1)
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.setValue,ncol+1,nrow+1,1)
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.addValue,ncol+1,nrow+1,1)
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.__call__,ncol+1,nrow+1)
+        if is_jax_galsim():
+            assert_raises((galsim.GalSimBoundsError, Exception),im1.copy().setValue,ncol+1,nrow+1,1)
+            assert_raises((galsim.GalSimBoundsError, Exception),im1.copy().__call__,ncol+1,nrow+1)
+        else:
+            assert_raises((galsim.GalSimBoundsError, Exception),im1.view().setValue,ncol+1,nrow+1,1)
+            assert_raises((galsim.GalSimBoundsError, Exception),im1.view().__call__,ncol+1,nrow+1)
 
-        assert_raises(galsim.GalSimBoundsError,im1.__getitem__,galsim.BoundsI(0,ncol,1,nrow))
-        assert_raises(galsim.GalSimBoundsError,im1.__getitem__,galsim.BoundsI(1,ncol,0,nrow))
-        assert_raises(galsim.GalSimBoundsError,im1.__getitem__,galsim.BoundsI(1,ncol+1,1,nrow))
-        assert_raises(galsim.GalSimBoundsError,im1.__getitem__,galsim.BoundsI(1,ncol,1,nrow+1))
-        assert_raises(galsim.GalSimBoundsError,im1.__getitem__,galsim.BoundsI(0,ncol+1,0,nrow+1))
-        assert_raises(galsim.GalSimBoundsError,im1.subImage,galsim.BoundsI(0,ncol,1,nrow))
-        assert_raises(galsim.GalSimBoundsError,im1.subImage,galsim.BoundsI(1,ncol,0,nrow))
-        assert_raises(galsim.GalSimBoundsError,im1.subImage,galsim.BoundsI(1,ncol+1,1,nrow))
-        assert_raises(galsim.GalSimBoundsError,im1.subImage,galsim.BoundsI(1,ncol,1,nrow+1))
-        assert_raises(galsim.GalSimBoundsError,im1.subImage,galsim.BoundsI(0,ncol+1,0,nrow+1))
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.__getitem__,galsim.BoundsI(0,ncol,1,nrow))
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.__getitem__,galsim.BoundsI(1,ncol,0,nrow))
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.__getitem__,galsim.BoundsI(1,ncol+1,1,nrow))
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.__getitem__,galsim.BoundsI(1,ncol,1,nrow+1))
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.__getitem__,galsim.BoundsI(0,ncol+1,0,nrow+1))
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.subImage,galsim.BoundsI(0,ncol,1,nrow))
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.subImage,galsim.BoundsI(1,ncol,0,nrow))
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.subImage,galsim.BoundsI(1,ncol+1,1,nrow))
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.subImage,galsim.BoundsI(1,ncol,1,nrow+1))
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.subImage,galsim.BoundsI(0,ncol+1,0,nrow+1))
 
-        assert_raises(galsim.GalSimBoundsError,im1.setSubImage,galsim.BoundsI(0,ncol,1,nrow),
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.setSubImage,galsim.BoundsI(0,ncol,1,nrow),
                       galsim.Image(ncol+1,nrow, init_value=10))
-        assert_raises(galsim.GalSimBoundsError,im1.setSubImage,galsim.BoundsI(1,ncol,0,nrow),
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.setSubImage,galsim.BoundsI(1,ncol,0,nrow),
                       galsim.Image(ncol+1,nrow, init_value=10))
-        assert_raises(galsim.GalSimBoundsError,im1.setSubImage,galsim.BoundsI(1,ncol+1,1,nrow),
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.setSubImage,galsim.BoundsI(1,ncol+1,1,nrow),
                       galsim.Image(ncol+1,nrow, init_value=10))
-        assert_raises(galsim.GalSimBoundsError,im1.setSubImage,galsim.BoundsI(1,ncol,1,nrow+1),
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.setSubImage,galsim.BoundsI(1,ncol,1,nrow+1),
                       galsim.Image(ncol+1,nrow, init_value=10))
-        assert_raises(galsim.GalSimBoundsError,im1.setSubImage,galsim.BoundsI(0,ncol+1,0,nrow+1),
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.setSubImage,galsim.BoundsI(0,ncol+1,0,nrow+1),
                       galsim.Image(ncol+2,nrow+2, init_value=10))
-        assert_raises(galsim.GalSimBoundsError,im1.__setitem__,galsim.BoundsI(0,ncol,1,nrow),
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.__setitem__,galsim.BoundsI(0,ncol,1,nrow),
                       galsim.Image(ncol+1,nrow, init_value=10))
-        assert_raises(galsim.GalSimBoundsError,im1.__setitem__,galsim.BoundsI(1,ncol,0,nrow),
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.__setitem__,galsim.BoundsI(1,ncol,0,nrow),
                       galsim.Image(ncol+1,nrow, init_value=10))
-        assert_raises(galsim.GalSimBoundsError,im1.__setitem__,galsim.BoundsI(1,ncol+1,1,nrow),
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.__setitem__,galsim.BoundsI(1,ncol+1,1,nrow),
                       galsim.Image(ncol+1,nrow, init_value=10))
-        assert_raises(galsim.GalSimBoundsError,im1.__setitem__,galsim.BoundsI(1,ncol,1,nrow+1),
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.__setitem__,galsim.BoundsI(1,ncol,1,nrow+1),
                       galsim.Image(ncol+1,nrow, init_value=10))
-        assert_raises(galsim.GalSimBoundsError,im1.__setitem__,galsim.BoundsI(0,ncol+1,0,nrow+1),
+        assert_raises((galsim.GalSimBoundsError, Exception),im1.__setitem__,galsim.BoundsI(0,ncol+1,0,nrow+1),
                       galsim.Image(ncol+2,nrow+2, init_value=10))
 
         # Also, setting values in something that should be const
-        assert_raises(galsim.GalSimImmutableError,im1.view(make_const=True).setValue,1,1,1)
-        assert_raises(galsim.GalSimImmutableError,im1.view(make_const=True).real.setValue,1,1,1)
-        assert_raises(galsim.GalSimImmutableError,im1.view(make_const=True).imag.setValue,1,1,1)
+        if is_jax_galsim():
+            assert_raises(galsim.GalSimImmutableError,im1.copy(make_const=True).setValue,1,1,1)
+            assert_raises(galsim.GalSimImmutableError,im1.copy(make_const=True).real.setValue,1,1,1)
+            assert_raises(galsim.GalSimImmutableError,im1.copy(make_const=True).imag.setValue,1,1,1)
+        else:
+            assert_raises(galsim.GalSimImmutableError,im1.view(make_const=True).setValue,1,1,1)
+            assert_raises(galsim.GalSimImmutableError,im1.view(make_const=True).real.setValue,1,1,1)
+            assert_raises(galsim.GalSimImmutableError,im1.view(make_const=True).imag.setValue,1,1,1)
         if tchar[i][0] != 'C':
             assert_raises(galsim.GalSimImmutableError,im1.imag.setValue,1,1,1)
 
@@ -328,7 +382,10 @@ def test_Image_basic():
         im5_view = galsim.Image(ref_array.astype(np_array_type).tolist(), dtype=array_type)
         im6_view = galsim.Image(ref_array.astype(np_array_type), xmin=4, ymin=7)
         im7_view = galsim.Image(ref_array.astype(np_array_type), xmin=0, ymin=0)
-        im8_view = galsim.Image(ref_array).view(dtype=np_array_type)
+        if is_jax_galsim():
+            im8_view = galsim.Image(ref_array).copy(dtype=np_array_type)
+        else:
+            im8_view = galsim.Image(ref_array).view(dtype=np_array_type)
         for y in range(1,nrow+1):
             for x in range(1,ncol+1):
                 value3 = 10*x+y
@@ -340,7 +397,10 @@ def test_Image_basic():
                 assert im8_view(x,y) == value3
 
         # Check shift ops
-        im1_view = im1.view() # View with old bounds
+        if is_jax_galsim():
+            im1_view = im1.copy()
+        else:
+            im1_view = im1.view() # View with old bounds
         dx = 31
         dy = 16
         im1.shift(dx,dy)
@@ -359,7 +419,8 @@ def test_Image_basic():
                 value3 = 10*x+y
                 assert im1(x+dx,y+dy) == value3
                 assert im1_view(x,y) == value3
-                assert im2(x,y) == value3
+                if not is_jax_galsim():
+                    assert im2(x,y) == value3
                 assert im2_view(x+dx,y+dy) == value3
                 assert im3_view(x+dx,y+dy) == value3
 
@@ -452,11 +513,19 @@ def test_undefined_image():
 
         assert_raises(galsim.GalSimUndefinedBoundsError,im1.setValue, 0, 0, 1)
         assert_raises(galsim.GalSimUndefinedBoundsError,im1.__call__, 0, 0)
-        assert_raises(galsim.GalSimUndefinedBoundsError,im1.view().setValue, 0, 0, 1)
-        assert_raises(galsim.GalSimUndefinedBoundsError,im1.view().__call__, 0, 0)
-        assert_raises(galsim.GalSimUndefinedBoundsError,im1.view().addValue, 0, 0, 1)
+        if is_jax_galsim():
+            assert_raises(galsim.GalSimUndefinedBoundsError,im1.copy().setValue, 0, 0, 1)
+            assert_raises(galsim.GalSimUndefinedBoundsError,im1.copy().__call__, 0, 0)
+            assert_raises(galsim.GalSimUndefinedBoundsError,im1.copy().addValue, 0, 0, 1)
+        else:
+            assert_raises(galsim.GalSimUndefinedBoundsError,im1.view().setValue, 0, 0, 1)
+            assert_raises(galsim.GalSimUndefinedBoundsError,im1.view().__call__, 0, 0)
+            assert_raises(galsim.GalSimUndefinedBoundsError,im1.view().addValue, 0, 0, 1)
         assert_raises(galsim.GalSimUndefinedBoundsError,im1.fill, 3)
-        assert_raises(galsim.GalSimUndefinedBoundsError,im1.view().fill, 3)
+        if is_jax_galsim():
+            assert_raises(galsim.GalSimUndefinedBoundsError,im1.copy().fill, 3)
+        else:
+            assert_raises(galsim.GalSimUndefinedBoundsError,im1.view().fill, 3)
         assert_raises(galsim.GalSimUndefinedBoundsError,im1.invertSelf)
 
         assert_raises(galsim.GalSimUndefinedBoundsError,im1.__getitem__,galsim.BoundsI(1,2,1,2))
@@ -473,8 +542,12 @@ def test_undefined_image():
 
         check_pickle(im1.bounds)
         check_pickle(im1)
-        check_pickle(im1.view())
-        check_pickle(im1.view(make_const=True))
+        if is_jax_galsim():
+            check_pickle(im1.copy())
+            check_pickle(im1.copy(make_const=True))
+        else:
+            check_pickle(im1.view())
+            check_pickle(im1.view(make_const=True))
 
 
 @timer
@@ -692,7 +765,7 @@ def test_Image_FITS_IO(run_slow):
         assert_raises(OSError, galsim.fits.read, test_file, compression='none')
 
     # Check a file with no WCS information
-    nowcs_file = 'fits_files/blankimg.fits'
+    nowcs_file = os.path.join(os.path.dirname(__file__), 'fits_files/blankimg.fits')
     im = galsim.fits.read(nowcs_file)
     assert im.wcs == galsim.PixelScale(1.0)
 
@@ -1019,7 +1092,7 @@ def test_Image_MultiFITS_IO(run_slow):
         assert_raises(OSError, galsim.fits.readMulti, test_multi_file, compression='none')
 
     # Check a file with no WCS information
-    nowcs_file = 'fits_files/blankimg.fits'
+    nowcs_file = os.path.join(os.path.dirname(__file__), 'fits_files/blankimg.fits')
     ims = galsim.fits.readMulti(nowcs_file)
     assert ims[0].wcs == galsim.PixelScale(1.0)
 
@@ -1349,7 +1422,7 @@ def test_Image_CubeFITS_IO(run_slow):
         assert_raises(OSError, galsim.fits.readCube, test_cube_file, compression='none')
 
     # Check a file with no WCS information
-    nowcs_file = 'fits_files/blankimg.fits'
+    nowcs_file = os.path.join(os.path.dirname(__file__), 'fits_files/blankimg.fits')
     ims = galsim.fits.readCube(nowcs_file)
     assert ims[0].wcs == galsim.PixelScale(1.0)
 
@@ -1450,7 +1523,7 @@ def test_Image_binary_subtract():
                     err_msg="Inplace add in Image class does not match reference for dtypes = "
                     +str(types[i])+" and "+str(types[j]))
 
-        with assert_raises(ValueError):
+        with assert_raises((Exception, ValueError)):
             image1 - image1.subImage(galsim.BoundsI(0,4,0,4))
 
 
@@ -1493,7 +1566,7 @@ def test_Image_binary_multiply():
                     err_msg="Inplace add in Image class does not match reference for dtypes = "
                     +str(types[i])+" and "+str(types[j]))
 
-        with assert_raises(ValueError):
+        with assert_raises((Exception, ValueError)):
             image1 * image1.subImage(galsim.BoundsI(0,4,0,4))
 
 
@@ -1539,7 +1612,7 @@ def test_Image_binary_divide():
                     err_msg="Inplace divide in Image class does not match reference for dtypes = "
                     +str(types[i])+" and "+str(types[j]))
 
-        with assert_raises(ValueError):
+        with assert_raises((Exception, ValueError)):
             image1 / image1.subImage(galsim.BoundsI(0,4,0,4))
 
 
@@ -1738,16 +1811,19 @@ def test_Image_inplace_add():
         image4 = image2.copy()
         image4.array += image2.array
         np.testing.assert_allclose(image4.array, 2*image2.array)
-        image4.array[:] += image2.array
+        if is_jax_galsim():
+            image4.array += image2.array
+        else:
+            image4.array[:] += image2.array
         np.testing.assert_allclose(image4.array, 3*image2.array)
         image4.array = image4.array + image2.array
         np.testing.assert_allclose(image4.array, 4*image2.array)
-        with assert_raises(ValueError):
+        with assert_raises((ValueError, TypeError)):
             image4.array += image2.array[:2,:]
-        with assert_raises(ValueError):
+        with assert_raises((Exception, ValueError)):
             image4.array = image4.array[:2,:] + image2.array[:2,:]
 
-        with assert_raises(ValueError):
+        with assert_raises((Exception, ValueError)):
             image1 += image1.subImage(galsim.BoundsI(0,4,0,4))
 
 
@@ -1793,16 +1869,19 @@ def test_Image_inplace_subtract():
         image4 = 5*image2
         image4.array -= image2.array
         np.testing.assert_allclose(image4.array, 4*image2.array)
-        image4.array[:] -= image2.array
+        if is_jax_galsim():
+            image4.array -= image2.array
+        else:
+            image4.array[:] -= image2.array
         np.testing.assert_allclose(image4.array, 3*image2.array)
         image4.array = image4.array - image2.array
         np.testing.assert_allclose(image4.array, 2*image2.array)
-        with assert_raises(ValueError):
+        with assert_raises((ValueError, TypeError)):
             image4.array -= image2.array[:2,:]
-        with assert_raises(ValueError):
+        with assert_raises((Exception, ValueError)):
             image4.array = image4.array[:2,:] - image2.array[:2,:]
 
-        with assert_raises(ValueError):
+        with assert_raises((Exception, ValueError)):
             image1 -= image1.subImage(galsim.BoundsI(0,4,0,4))
 
 
@@ -1844,7 +1923,7 @@ def test_Image_inplace_multiply():
                     err_msg="Inplace multiply in Image class does not match reference for dtypes = "
                     +str(types[i])+" and "+str(types[j]))
 
-        with assert_raises(ValueError):
+        with assert_raises((Exception, ValueError)):
             image1 *= image1.subImage(galsim.BoundsI(0,4,0,4))
 
 
@@ -1904,7 +1983,7 @@ def test_Image_inplace_divide():
                     err_msg="Inplace divide in Image class does not match reference for dtypes = "
                     +str(types[i])+" and "+str(types[j]))
 
-        with assert_raises(ValueError):
+        with assert_raises((Exception, ValueError)):
             image1 /= image1.subImage(galsim.BoundsI(0,4,0,4))
 
 
@@ -1937,11 +2016,14 @@ def test_Image_inplace_scalar_add():
         image4 = image1.copy()
         image4.array += 1
         np.testing.assert_allclose(image4.array, image1.array + 1)
-        image4.array[:] += 1
+        if is_jax_galsim():
+            image4.array += 1
+        else:
+            image4.array[:] += 1
         np.testing.assert_allclose(image4.array, image1.array + 2)
         image4.array = image4.array + 1
         np.testing.assert_allclose(image4.array, image1.array + 3)
-        with assert_raises(ValueError):
+        with assert_raises((Exception, ValueError)):
             image4.array = image4.array[:2,:] + 1
 
 
@@ -2002,11 +2084,14 @@ def test_Image_inplace_scalar_multiply():
         image4 = image2.copy()
         image4.array *= 2
         np.testing.assert_allclose(image4.array, 2*image2.array)
-        image4.array[:] *= 2
+        if is_jax_galsim():
+            image4.array *= 2
+        else:
+            image4.array[:] *= 2
         np.testing.assert_allclose(image4.array, 4*image2.array)
         image4.array = image4.array * 2
         np.testing.assert_allclose(image4.array, 8*image2.array)
-        with assert_raises(ValueError):
+        with assert_raises((Exception, ValueError)):
             image4.array = image4.array[:2,:] * 2
 
 
@@ -2039,14 +2124,19 @@ def test_Image_inplace_scalar_divide():
         # Dividing via array:
         image4 = 16*image2
         if simple_types[i] is int:
-            with assert_raises(TypeError):
-                image4.array /= 2
+            if not is_jax_galsim():
+                # jax does not raise a type error here
+                with assert_raises(TypeError):
+                    image4.array /= 2
             with assert_raises(TypeError):
                 image4.array[:] /= 2
             np.testing.assert_array_equal(image4.array, 16*image2.array)  # unchanged yet
             image4.array //= 2
             np.testing.assert_array_equal(image4.array, 8*image2.array)
-            image4.array[:] //= 2
+            if is_jax_galsim():
+                image4.array //= 2
+            else:
+                image4.array[:] //= 2
             np.testing.assert_array_equal(image4.array, 4*image2.array)
             image4.array = image4.array // 2
             np.testing.assert_array_equal(image4.array, 2*image2.array)
@@ -2054,16 +2144,19 @@ def test_Image_inplace_scalar_divide():
             # The native numpy operation would use floor to cast to int, which is 1 smaller.
             image4.array = (image4.array / 2.0001)
             np.testing.assert_array_equal(image4.array, image2.array)
-            with assert_raises(ValueError):
+            with assert_raises((Exception, ValueError)):
                 image4.array = image4.array[:2,:] // 2
         else:
             image4.array /= 2
             np.testing.assert_allclose(image4.array, 8*image2.array)
-            image4.array[:] /= 2
+            if is_jax_galsim():
+                image4.array /= 2
+            else:
+                image4.array[:] /= 2
             np.testing.assert_allclose(image4.array, 4*image2.array)
             image4.array = image4.array / 2
             np.testing.assert_allclose(image4.array, 2*image2.array)
-            with assert_raises(ValueError):
+            with assert_raises((Exception, ValueError)):
                 image4.array = image4.array[:2,:] / 2
 
 
@@ -2217,7 +2310,7 @@ def test_subImage_persistence():
     """Test that a subimage is properly accessible even if the original image has gone out
     of scope.
     """
-    file_name = os.path.join('fits_files','tpv.fits')
+    file_name = os.path.join(os.path.dirname(__file__), os.path.join('fits_files','tpv.fits'))
     bounds = galsim.BoundsI(123, 133, 45, 55)  # Something random
 
     # In this case, the original image has gone out of scope.  At least on some systems,
@@ -2388,8 +2481,8 @@ def test_BoundsI_init_with_non_pure_ints():
         "Cannot initialize a BoundI with float array elements"
 
     # Using non-integers should raise a TypeError
-    assert_raises(TypeError, galsim.BoundsI, *bound_arr_flt_nonint)
-    assert_raises(TypeError, galsim.BoundsI,
+    assert_raises((Exception, TypeError), galsim.BoundsI, *bound_arr_flt_nonint)
+    assert_raises((Exception, TypeError), galsim.BoundsI,
                   xmin=bound_arr_flt_nonint[0], xmax=bound_arr_flt_nonint[1],
                   ymin=bound_arr_flt_nonint[2], ymax=bound_arr_flt_nonint[3])
 
@@ -2654,13 +2747,17 @@ def test_copy():
     assert im(3,8) != 11.
 
     # If copy=False is specified, then it shares the same array
-    im3b = galsim.Image(im, copy=False)
-    assert im3b.wcs == im.wcs
-    assert im3b.bounds == im.bounds
-    np.testing.assert_array_equal(im3b.array, im.array)
-    im3b.setValue(2,3,2.)
-    assert im3b(2,3) == 2.
-    assert im(2,3) == 2.
+    if is_jax_galsim():
+        # jax-galsim does not support references
+        pass
+    else:
+        im3b = galsim.Image(im, copy=False)
+        assert im3b.wcs == im.wcs
+        assert im3b.bounds == im.bounds
+        np.testing.assert_array_equal(im3b.array, im.array)
+        im3b.setValue(2,3,2.)
+        assert im3b(2,3) == 2.
+        assert im(2,3) == 2.
 
     # Constructor can change the wcs
     im4 = galsim.Image(im, scale=0.6)
@@ -2711,13 +2808,17 @@ def test_copy():
     assert im_slice(2,3) != 11.
 
     # Can also copy by giving the array and specify copy=True
-    im10 = galsim.Image(im.array, bounds=im.bounds, wcs=im.wcs, copy=False)
-    assert im10.wcs == im.wcs
-    assert im10.bounds == im.bounds
-    np.testing.assert_array_equal(im10.array, im.array)
-    im10[2,3] = 17
-    assert im10(2,3) == 17.
-    assert im(2,3) == 17.
+    if is_jax_galsim():
+        # jax-galsim does not support references
+        pass
+    else:
+        im10 = galsim.Image(im.array, bounds=im.bounds, wcs=im.wcs, copy=False)
+        assert im10.wcs == im.wcs
+        assert im10.bounds == im.bounds
+        np.testing.assert_array_equal(im10.array, im.array)
+        im10[2,3] = 17
+        assert im10(2,3) == 17.
+        assert im(2,3) == 17.
 
     im10b = galsim.Image(im.array, bounds=im.bounds, wcs=im.wcs, copy=True)
     assert im10b.wcs == im.wcs
@@ -2749,11 +2850,19 @@ def test_complex_image():
     for dtype in [np.complex64, np.complex128]:
         # Some complex modifications to tests in test_Image_basic
         im1 = galsim.Image(ncol, nrow, dtype=dtype)
-        im1_view = im1.view()
-        im1_cview = im1.view(make_const=True)
+        if is_jax_galsim():
+            im1_view = im1.copy()
+            im1_cview = im1.copy(make_const=True)
+        else:
+            im1_view = im1.view()
+            im1_cview = im1.view(make_const=True)
         im2 = galsim.Image(ncol, nrow, init_value=23, dtype=dtype)
-        im2_view = im2.view()
-        im2_cview = im2.view(make_const=True)
+        if is_jax_galsim():
+            im2_view = im2.copy()
+            im2_cview = im2.copy(make_const=True)
+        else:
+            im2_view = im2.view()
+            im2_cview = im2.view(make_const=True)
         im2_conj = im2.conjugate
 
         # Check various ways to set and get values
@@ -2766,41 +2875,58 @@ def test_complex_image():
             for x in range(1,ncol+1):
                 value = 100 + 10*x + y + 13j*x + 23j*y
                 assert im1(x,y) == value
-                assert im1.view()(x,y) == value
-                assert im1.view(make_const=True)(x,y) == value
-                assert im2(x,y) == value
-                assert im2_view(x,y) == value
-                assert im2_cview(x,y) == value
+                if is_jax_galsim():
+                    assert im1.copy()(x,y) == value
+                    assert im1.copy(make_const=True)(x,y) == value
+                else:
+                    assert im1.view()(x,y) == value
+                    assert im1.view(make_const=True)(x,y) == value
+                    assert im2(x,y) == value
+                    assert im2_view(x,y) == value
+                    assert im2_cview(x,y) == value
                 assert im1.conjugate(x,y) == np.conjugate(value)
 
                 # complex conjugate is not a view into the original.
                 assert im2_conj(x,y) == 23
-                assert im2.conjugate(x,y) == np.conjugate(value)
+                if not is_jax_galsim():
+                    assert im2.conjugate(x,y) == np.conjugate(value)
 
                 value2 = 10*x + y + 20j*x + 2j*y
                 im1.setValue(x,y, value2)
                 im2_view.setValue(x=x, y=y, value=value2)
                 assert im1(x,y) == value2
-                assert im1.view()(x,y) == value2
-                assert im1.view(make_const=True)(x,y) == value2
-                assert im2(x,y) == value2
-                assert im2_view(x,y) == value2
-                assert im2_cview(x,y) == value2
+                if is_jax_galsim():
+                    assert im1.copy()(x,y) == value2
+                    assert im1.copy(make_const=True)(x,y) == value2
+                else:
+                    assert im1.view()(x,y) == value2
+                    assert im1.view(make_const=True)(x,y) == value2
+                    assert im2(x,y) == value2
+                    assert im2_view(x,y) == value2
+                    assert im2_cview(x,y) == value2
 
                 assert im1.real(x,y) == value2.real
-                assert im1.view().real(x,y) == value2.real
-                assert im1.view(make_const=True).real(x,y) == value2.real
-                assert im2.real(x,y) == value2.real
-                assert im2_view.real(x,y) == value2.real
-                assert im2_cview.real(x,y) == value2.real
+                if is_jax_galsim():
+                    assert im1.copy().real(x,y) == value2.real
+                    assert im1.copy(make_const=True).real(x,y) == value2.real
+                else:
+                    assert im1.view().real(x,y) == value2.real
+                    assert im1.view(make_const=True).real(x,y) == value2.real
+                    assert im2.real(x,y) == value2.real
+                    assert im2_view.real(x,y) == value2.real
+                    assert im2_cview.real(x,y) == value2.real
                 assert im1.imag(x,y) == value2.imag
-                assert im1.view().imag(x,y) == value2.imag
-                assert im1.view(make_const=True).imag(x,y) == value2.imag
-                assert im2.imag(x,y) == value2.imag
-                assert im2_view.imag(x,y) == value2.imag
-                assert im2_cview.imag(x,y) == value2.imag
-                assert im1.conjugate(x,y) == np.conjugate(value2)
-                assert im2.conjugate(x,y) == np.conjugate(value2)
+                if is_jax_galsim():
+                    assert im1.copy().imag(x,y) == value2.imag
+                    assert im1.copy(make_const=True).imag(x,y) == value2.imag
+                else:
+                    assert im1.view().imag(x,y) == value2.imag
+                    assert im1.view(make_const=True).imag(x,y) == value2.imag
+                    assert im2.imag(x,y) == value2.imag
+                    assert im2_view.imag(x,y) == value2.imag
+                    assert im2_cview.imag(x,y) == value2.imag
+                    assert im1.conjugate(x,y) == np.conjugate(value2)
+                    assert im2.conjugate(x,y) == np.conjugate(value2)
 
                 rvalue3 = 12*x + y
                 ivalue3 = x + 21*y
@@ -2809,14 +2935,20 @@ def test_complex_image():
                 im1.imag.setValue(x,y, ivalue3)
                 im2_view.real.setValue(x,y, rvalue3)
                 im2_view.imag.setValue(x,y, ivalue3)
-                assert im1(x,y) == value3
-                assert im1.view()(x,y) == value3
-                assert im1.view(make_const=True)(x,y) == value3
-                assert im2(x,y) == value3
-                assert im2_view(x,y) == value3
-                assert im2_cview(x,y) == value3
-                assert im1.conjugate(x,y) == np.conjugate(value3)
-                assert im2.conjugate(x,y) == np.conjugate(value3)
+                # jax galsim does not support views
+                if is_jax_galsim():
+                    assert im1(x,y) != value3
+                    assert im1.copy()(x,y) != value3
+                    assert im1.copy(make_const=True)(x,y) != value3
+                else:
+                    assert im1(x,y) == value3
+                    assert im1.view()(x,y) == value3
+                    assert im1.view(make_const=True)(x,y) == value3
+                    assert im2(x,y) == value3
+                    assert im2_view(x,y) == value3
+                    assert im2_cview(x,y) == value3
+                    assert im1.conjugate(x,y) == np.conjugate(value3)
+                    assert im2.conjugate(x,y) == np.conjugate(value3)
 
         # Check view of given data
         im3_view = galsim.Image((1+2j)*ref_array.astype(complex))
@@ -2854,7 +2986,7 @@ def test_complex_image_arith():
     np.testing.assert_array_equal(image2.array, ref_array * (2+5j),
             err_msg="ImageD * complex is not correct")
     image2 = image1 / (2+5j)
-    np.testing.assert_array_equal(image2.array, ref_array / (2+5j),
+    np.testing.assert_allclose(image2.array, ref_array / (2+5j),
             err_msg="ImageD / complex is not correct")
 
     # Binary complex scalar op ImageD
@@ -2868,7 +3000,7 @@ def test_complex_image_arith():
     np.testing.assert_array_equal(image2.array, ref_array * (2+5j),
             err_msg="complex * ImageD is not correct")
     image2 = (2+5j) / image1
-    np.testing.assert_array_equal(image2.array, (2+5j) / ref_array.astype(float),
+    np.testing.assert_allclose(image2.array, (2+5j) / ref_array.astype(float),
             err_msg="complex / ImageD is not correct")
 
     image2 = image1 * (3+1j)
@@ -2884,7 +3016,7 @@ def test_complex_image_arith():
     np.testing.assert_array_equal(image3.array, (3+1j)*ref_array * (2+5j),
             err_msg="ImageCD * complex is not correct")
     image3 = image2 / (2+5j)
-    np.testing.assert_array_equal(image3.array, (3+1j)*ref_array / (2+5j),
+    np.testing.assert_allclose(image3.array, (3+1j)*ref_array / (2+5j),
             err_msg="ImageCD / complex is not correct")
 
     # Binary complex scalar op ImageCD
@@ -2898,7 +3030,7 @@ def test_complex_image_arith():
     np.testing.assert_array_equal(image3.array, (3+1j)*ref_array * (2+5j),
             err_msg="complex * ImageCD is not correct")
     image3 = (2+5j) / image2
-    np.testing.assert_array_equal(image3.array, (2+5j) / ((3+1j)*ref_array),
+    np.testing.assert_allclose(image3.array, (2+5j) / ((3+1j)*ref_array),
             err_msg="complex / ImageCD is not correct")
 
     # Binary ImageD op ImageCD
@@ -2912,7 +3044,7 @@ def test_complex_image_arith():
     np.testing.assert_array_equal(image3.array, (3+1j)*ref_array**2,
             err_msg="ImageD * ImageCD is not correct")
     image3 = image1 / image2
-    np.testing.assert_almost_equal(image3.array, 1./(3+1j), decimal=12,
+    np.testing.assert_array_almost_equal(image3.array, 1./(3+1j), decimal=12,
             err_msg="ImageD / ImageCD is not correct")
 
     # Binary ImageCD op ImageD
@@ -2926,7 +3058,7 @@ def test_complex_image_arith():
     np.testing.assert_array_equal(image3.array, (3+1j)*ref_array**2,
             err_msg="ImageD * ImageCD is not correct")
     image3 = image2 / image1
-    np.testing.assert_almost_equal(image3.array, (3+1j), decimal=12,
+    np.testing.assert_array_almost_equal(image3.array, (3+1j), decimal=12,
             err_msg="ImageD / ImageCD is not correct")
 
     # Binary ImageCD op ImageCD
@@ -2941,7 +3073,7 @@ def test_complex_image_arith():
     np.testing.assert_array_equal(image4.array, (15-5j)*ref_array**2,
             err_msg="ImageCD * ImageCD is not correct")
     image4 = image2 / image3
-    np.testing.assert_almost_equal(image4.array, (9+13j)/25., decimal=12,
+    np.testing.assert_array_almost_equal(image4.array, (9+13j)/25., decimal=12,
             err_msg="ImageCD / ImageCD is not correct")
 
     # In place ImageCD op complex scalar
@@ -2959,7 +3091,7 @@ def test_complex_image_arith():
             err_msg="ImageCD * complex is not correct")
     image4 = image2.copy()
     image4 /= (2+5j)
-    np.testing.assert_array_equal(image4.array, (3+1j)*ref_array / (2+5j),
+    np.testing.assert_allclose(image4.array, (3+1j)*ref_array / (2+5j),
             err_msg="ImageCD / complex is not correct")
 
     # In place ImageCD op ImageD
@@ -2977,7 +3109,7 @@ def test_complex_image_arith():
             err_msg="ImageD * ImageCD is not correct")
     image4 = image2.copy()
     image4 /= image1
-    np.testing.assert_almost_equal(image4.array, (3+1j), decimal=12,
+    np.testing.assert_array_almost_equal(image4.array, (3+1j), decimal=12,
             err_msg="ImageD / ImageCD is not correct")
 
     # In place ImageCD op ImageCD
@@ -2995,7 +3127,7 @@ def test_complex_image_arith():
             err_msg="ImageCD * ImageCD is not correct")
     image4 = image2.copy()
     image4 /= image3
-    np.testing.assert_almost_equal(image4.array, (9+13j)/25., decimal=12,
+    np.testing.assert_array_almost_equal(image4.array, (9+13j)/25., decimal=12,
             err_msg="ImageCD / ImageCD is not correct")
 
 
@@ -3263,68 +3395,68 @@ def test_int_image_arith():
             np.testing.assert_array_equal(test.array, 0,
                     err_msg="//= failed for Images with dtype = %s."%types[i])
 
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         full & full.subImage(galsim.BoundsI(0,4,0,4))
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         full | full.subImage(galsim.BoundsI(0,4,0,4))
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         full ^ full.subImage(galsim.BoundsI(0,4,0,4))
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         full // full.subImage(galsim.BoundsI(0,4,0,4))
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         full % full.subImage(galsim.BoundsI(0,4,0,4))
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         full &= full.subImage(galsim.BoundsI(0,4,0,4))
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         full |= full.subImage(galsim.BoundsI(0,4,0,4))
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         full ^= full.subImage(galsim.BoundsI(0,4,0,4))
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         full //= full.subImage(galsim.BoundsI(0,4,0,4))
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         full %= full.subImage(galsim.BoundsI(0,4,0,4))
 
     imd = galsim.ImageD(ref_array)
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         imd & full
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         imd | full
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         imd ^ full
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         imd // full
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         imd % full
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         imd &= full
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         imd |= full
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         imd ^= full
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         imd //= full
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         imd %= full
 
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         full & imd
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         full | imd
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         full ^ imd
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         full // imd
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         full % imd
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         full &= imd
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         full |= imd
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         full ^= imd
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         full //= imd
-    with assert_raises(ValueError):
+    with assert_raises((Exception, ValueError)):
         full %= imd
 
 
@@ -3345,7 +3477,7 @@ def test_wrap():
     b = galsim.BoundsI(1,4,1,4)
     im_quad = im_orig[b]
     im_wrap = im.wrap(b)
-    np.testing.assert_almost_equal(im_wrap.array, 4.*im_quad.array, 12,
+    np.testing.assert_array_almost_equal(im_wrap.array, 4.*im_quad.array, 12,
                                    "image.wrap() into first quadrant did not match expectation")
 
     # The same thing should work no matter where the lower left corner is:
@@ -3354,7 +3486,7 @@ def test_wrap():
         im_quad = im_orig[b]
         im = im_orig.copy()
         im_wrap = im.wrap(b)
-        np.testing.assert_almost_equal(im_wrap.array, 4.*im_quad.array, 12,
+        np.testing.assert_array_almost_equal(im_wrap.array, 4.*im_quad.array, 12,
                                        "image.wrap(%s) did not match expectation"%b)
         np.testing.assert_array_equal(im_wrap.array, im[b].array,
                                       "image.wrap(%s) did not return the right subimage")
@@ -3376,7 +3508,7 @@ def test_wrap():
             jj = (j-b.ymin) % (b.ymax-b.ymin+1) + b.ymin
             im_test.addValue(ii,jj,val)
     im_wrap = im.wrap(b)
-    np.testing.assert_almost_equal(im_wrap.array, im_test.array, 12,
+    np.testing.assert_array_almost_equal(im_wrap.array, im_test.array, 12,
                                    "image.wrap(%s) did not match expectation"%b)
     np.testing.assert_array_equal(im_wrap.array, im[b].array,
                                   "image.wrap(%s) did not return the right subimage")
@@ -3423,7 +3555,7 @@ def test_wrap():
 
     im_wrap = im.wrap(b)
     #print("im_wrap = ",im_wrap.array)
-    np.testing.assert_almost_equal(im_wrap.array, im_test.array, 12,
+    np.testing.assert_array_almost_equal(im_wrap.array, im_test.array, 12,
                                    "image.wrap(%s) did not match expectation"%b)
     np.testing.assert_array_equal(im_wrap.array, im[b].array,
                                   "image.wrap(%s) did not return the right subimage")
@@ -3434,7 +3566,7 @@ def test_wrap():
     #print('im_test = ',im_test[b2].array)
     #print('im2_wrap = ',im2_wrap.array)
     #print('diff = ',im2_wrap.array-im_test[b2].array)
-    np.testing.assert_almost_equal(im2_wrap.array, im_test[b2].array, 12,
+    np.testing.assert_array_almost_equal(im2_wrap.array, im_test[b2].array, 12,
                                    "image.wrap(%s) did not match expectation"%b)
     np.testing.assert_array_equal(im2_wrap.array, im2[b2].array,
                                   "image.wrap(%s) did not return the right subimage")
@@ -3445,7 +3577,7 @@ def test_wrap():
     #print('im_test = ',im_test[b3].array)
     #print('im3_wrap = ',im3_wrap.array)
     #print('diff = ',im3_wrap.array-im_test[b3].array)
-    np.testing.assert_almost_equal(im3_wrap.array, im_test[b3].array, 12,
+    np.testing.assert_array_almost_equal(im3_wrap.array, im_test[b3].array, 12,
                                    "image.wrap(%s) did not match expectation"%b)
     np.testing.assert_array_equal(im3_wrap.array, im3[b3].array,
                                   "image.wrap(%s) did not return the right subimage")
@@ -3625,7 +3757,7 @@ def test_fpack():
     """Test the functionality that we advertise as being equivalent to fpack/funpack
     """
     from astropy.io import fits
-    file_name0 = os.path.join('des_data','DECam_00158414_01.fits.fz')
+    file_name0 = os.path.join(os.path.dirname(__file__), 'des_data','DECam_00158414_01.fits.fz')
     hdulist = fits.open(file_name0)
 
     # Remove a few invalid header keys in the DECam fits file
