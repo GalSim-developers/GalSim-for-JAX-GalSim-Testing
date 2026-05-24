@@ -359,8 +359,8 @@ def do_wcs_image(wcs, name, run_slow, approx=False):
     dir = os.path.join(os.path.dirname(__file__), 'fits_files')
     file_name = 'blankimg.fits'
     im = galsim.fits.read(file_name, dir=dir)
-    np.testing.assert_equal(im.origin.x, 1, "initial origin is not 1,1 as expected")
-    np.testing.assert_equal(im.origin.y, 1, "initial origin is not 1,1 as expected")
+    np.testing.assert_array_equal(im.origin.x, 1, "initial origin is not 1,1 as expected")
+    np.testing.assert_array_equal(im.origin.y, 1, "initial origin is not 1,1 as expected")
     im.wcs = wcs
     world1 = im.wcs.toWorld(im.origin)
     value1 = im(im.origin)
@@ -1186,10 +1186,7 @@ def test_pixelscale(run_slow):
     assert wcs.world_origin == galsim.PositionD(0,0)
 
     assert_raises(TypeError, galsim.PixelScale)
-    if is_jax_galsim():
-        pass
-    else:
-        assert_raises(TypeError, galsim.PixelScale, scale=galsim.PixelScale(scale))
+    assert_raises(TypeError, galsim.PixelScale, scale=galsim.PixelScale(scale))
     assert_raises(TypeError, galsim.PixelScale, scale=scale, origin=galsim.PositionD(0,0))
     assert_raises(TypeError, galsim.PixelScale, scale=scale, world_origin=galsim.PositionD(0,0))
 
@@ -2473,17 +2470,15 @@ def test_inverseab_convergence():
     # Now one that should fail, since it's well outside the applicable area for the SIP polynomials.
     ra = 2.1
     dec = -0.45
-    if is_jax_galsim():
+    with assert_raises((galsim.GalSimError, Exception)):
         x, y = wcs.radecToxy(ra, dec, units="radians")
-        assert np.all(np.isnan(x))
-        assert np.all(np.isnan(y))
-    else:
-        with assert_raises(galsim.GalSimError):
-            x, y = wcs.radecToxy(ra, dec, units="radians")
-        try:
-            x, y = wcs.radecToxy(ra, dec, units="radians")
-        except galsim.GalSimError as e:
-            print('Error message is\n',e)
+    try:
+        x, y = wcs.radecToxy(ra, dec, units="radians")
+    except (galsim.GalSimError, Exception) as e:
+        print('Error message is\n',e)
+        if is_jax_galsim():
+            assert "max iter reached" in str(e)
+        else:
             assert "[0,]" in str(e) or "[0]" in str(e)
 
     # Check as part of a longer list (longer than 256 is important)
@@ -2494,17 +2489,15 @@ def test_inverseab_convergence():
     dec = np.append(dec, [-0.45, 0.2])
     print('ra = ',ra)
     print('dec = ',dec)
-    if is_jax_galsim():
+    with assert_raises((galsim.GalSimError, Exception)):
         x, y = wcs.radecToxy(ra, dec, units="radians")
-        assert np.sum(np.isnan(x)) >= 2
-        assert np.sum(np.isnan(y)) >= 2
-    else:
-        with assert_raises(galsim.GalSimError):
-            x, y = wcs.radecToxy(ra, dec, units="radians")
-        try:
-            x, y = wcs.radecToxy(ra, dec, units="radians")
-        except galsim.GalSimError as e:
-            print('Error message is\n',e)
+    try:
+        x, y = wcs.radecToxy(ra, dec, units="radians")
+    except (galsim.GalSimError, Exception) as e:
+        print('Error message is\n',e)
+        if is_jax_galsim():
+            assert "max iter reached" in str(e)
+        else:
             assert "[1000,1001,]" in str(e) or "[1000, 1001]" in str(e)
             # We don't currently do this for the user, but it's not too hard to get a python list
             # of the bad indices.  Included here as an example for users who may need this.
