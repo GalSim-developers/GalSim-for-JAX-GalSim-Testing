@@ -222,11 +222,12 @@ def test_interpolant():
     check_pickle(galsim.SincInterpolant())
     check_pickle(galsim.Interpolant.from_name('sinc'))
 
+    # jax v0.12 changes sinc to be more precise
     true_xval = np.sinc(x)
-    np.testing.assert_allclose(s.xval(x), true_xval)
+    np.testing.assert_allclose(s.xval(x), true_xval, atol=1e-15)
     true_kval = np.zeros_like(x)
     true_kval[np.abs(x) < np.pi] = 1.
-    np.testing.assert_allclose(s.kval(x), true_kval)
+    np.testing.assert_allclose(s.kval(x), true_kval, atol=1e-15)
     assert np.isclose(s.xval(x[12]), true_xval[12])
     assert np.isclose(s.kval(x[12]), true_kval[12])
 
