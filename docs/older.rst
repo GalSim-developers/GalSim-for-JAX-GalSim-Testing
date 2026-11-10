@@ -5,27 +5,6 @@ listed here for brevity.  See the CHANGELOG files associated with each
 version for a more complete list.  Issue numbers related to each change are
 given in parentheses.
 
-v2.8
-----
-
-*Dependency Changes*
-
-- Removed setuptools<72 pin. (#1335)
-- Updated build to use std=c++14 to allow for eigen version 5.0. (#1343)
-
-
-*API Change*
-
-- Changed behavior for large FFTs to be a warning, rather than an error. (#1332, #1341)
-
-
-*Bug Fixes*
-
-- Fixed a bug in `Image.calculateFWHM` that started with numpy version 2.3. (#1336, #1337)
-- Fixed an error in chromatic drawing when WCS involves a reflection. (#1346, #1349)
-- Fixed the Roman bandpass functions using config interface to allow non-imaging bands. (#1347)
-
-
 v2.7
 ----
 
