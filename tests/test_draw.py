@@ -804,6 +804,8 @@ def test_drawKImage():
     assert_raises(TypeError, obj.drawKImage, image=im6, bounds=bounds)
     if not is_jax_galsim: # jax-galsim adds the `dtype` keyword argument
         assert_raises(TypeError, obj.drawKImage, image=im6, dtype=int)
+    else: 
+        assert_raises(galsim.GalSimValueError, obj.drawKImage, image=im6, dtype=int)
     assert_raises(TypeError, obj.drawKImage, nx=3, ny=4, image=im6, scale=scale)
     assert_raises(TypeError, obj.drawKImage, nx=3, ny=4, image=im6)
     assert_raises(TypeError, obj.drawKImage, nx=3, ny=4, add_to_image=True)
