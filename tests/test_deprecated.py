@@ -35,6 +35,8 @@ def check_dep(f, *args, **kwargs):
 
 @timer
 def test_gsparams():
+    if is_jax_galsim(): return
+
     check_dep(galsim.GSParams, allowed_flux_variation=0.90)
     check_dep(galsim.GSParams, range_division_for_extrema=50)
     check_dep(galsim.GSParams, small_fraction_of_flux=1.e-6)
@@ -495,6 +497,8 @@ def test_hsm_depr():
 
 @timer
 def test_photon_array_depr():
+    if is_jax_galsim(): return
+
     nphotons = 1000
 
     # First create from scratch
