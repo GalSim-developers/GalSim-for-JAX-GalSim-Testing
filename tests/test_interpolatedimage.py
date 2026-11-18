@@ -66,9 +66,9 @@ def test_roundtrip(ref):
     test_scale = 2.0
 
     for array_type in ftypes:
-        image_in = galsim.Image(ref_array.astype(array_type))
+        image_in = galsim.Image(ref_array.astype(array_type if not is_jax_galsim() else np.float64))
         np.testing.assert_array_equal(
-                ref_array.astype(array_type),image_in.array,
+                ref_array.astype(array_type if not is_jax_galsim() else np.float64),image_in.array,
                 err_msg="Array from input Image differs from reference array for type %s"%
                         array_type)
         test_array = np.zeros(ref_array.shape, dtype=array_type)
@@ -90,7 +90,7 @@ def test_roundtrip(ref):
         image_out = galsim.Image(test_array, scale=test_scale)
         interp.drawImage(image_out, method='no_pixel')
         np.testing.assert_array_equal(
-                ref_array.astype(array_type),image_out.array,
+                ref_array.astype(array_type if not is_jax_galsim() else np.float64),image_out.array,
                 err_msg="Output Image differs from reference for type %s, scale %s"%
                         (array_type,test_scale))
 
